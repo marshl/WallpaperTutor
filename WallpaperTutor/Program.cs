@@ -20,40 +20,78 @@ namespace WallpaperTutor
     using System;
     using System.Diagnostics;
     using Microsoft.Win32;
+    using System.Collections.Generic;
+    using System.Linq;
 
     public class Program
     {
-        static void Main(string[] args)
+        static string RegistryValueToPath(byte[] bytes)
+        {
+            string transcodedPath = String.Empty;
+            string temp = System.Text.Encoding.Unicode.GetString(bytes, 24, bytes.Length - 24);
+            temp = temp.TrimEnd((char)0);
+            return temp;
+        }
+
+        static bool GetNewPath(ref List<string> imagePaths)
+        {
+            RegistryKey desktopKey = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop");
+            int imageCount = (int)desktopKey.GetValue("TranscodedImageCount");
+
+            byte[] transcodedBytes = desktopKey.GetValue("TranscodedImageCache") as byte[];
+            imagePaths.Add(RegistryValueToPath(transcodedBytes));
+
+            for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
+            {
+                string valueName = "TranscodedImageCache_" + imageIndex.ToString("D3");
+                byte[] imageCache = desktopKey.GetValue(valueName) as byte[];
+
+                if (imageCache != null)
+                {
+                    imagePaths.Add(RegistryValueToPath(imageCache));
+                }
+            }
+
+            return true;
+        }
+
+        static bool GetOldPath(ref List<string> imagePaths)
         {
             RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Internet Explorer\Desktop\General");
+
             if (key == null)
             {
-                return;
+                return false;
             }
 
             object result = key.GetValue("WallpaperSource");
-            if (result == null)
+            if (result == null || !(result is string))
             {
-                return;
+                return false;
             }
 
-            string source;
-            try
-            {
-                source = (string)result;
-            }
-            catch (InvalidCastException)
-            {
-                return;
-            }
+            string source = (string)result;
 
             if (string.IsNullOrEmpty(source))
             {
-                return;
+                return false;
             }
 
-            // Windows Explorer command line arguments: https://support.microsoft.com/en-us/kb/152457
-            Process.Start("explorer", "/select," + source);
+            imagePaths.Add(source);
+            return true;
+        }
+
+        static void Main(string[] args)
+        {
+            List<string> imagePaths = new List<string>();
+            if(GetNewPath(ref imagePaths) || GetOldPath(ref imagePaths))
+            {
+                foreach (string path in imagePaths.Distinct())
+                {
+                    // Windows Explorer command line arguments: https://support.microsoft.com/en-us/kb/152457
+                    Process.Start("explorer", $"/select,{path}");
+                }
+            }
         }
     }
 }
