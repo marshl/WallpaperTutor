@@ -76,10 +76,6 @@ namespace WallpaperTutor
             }
 
             int imageCount = (int)imageCountKey;
-
-            byte[] transcodedBytes = desktopKey.GetValue("TranscodedImageCache") as byte[];
-            imagePaths.Add(ByteArrayToString(transcodedBytes));
-
             for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
             {
                 string valueName = "TranscodedImageCache_" + imageIndex.ToString("D3");
@@ -91,7 +87,13 @@ namespace WallpaperTutor
                 }
             }
 
-            return true;
+            if (imagePaths.Count == 0)
+            {
+                byte[] transcodedBytes = desktopKey.GetValue("TranscodedImageCache") as byte[];
+                imagePaths.Add(ByteArrayToString(transcodedBytes));
+            }
+
+            return imagePaths.Count > 0;
         }
 
         /// <summary>
