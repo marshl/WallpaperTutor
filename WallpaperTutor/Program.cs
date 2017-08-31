@@ -17,11 +17,11 @@
 //-----------------------------------------------------------------------
 namespace WallpaperTutor
 {
+    using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
-    using System.Text;
-    using Microsoft.Win32;
+    using System.Windows.Forms;
 
     /// <summary>
     /// The entry point class
@@ -29,15 +29,28 @@ namespace WallpaperTutor
     public class Program
     {
         /// <summary>
-        /// The entry point
+        /// The program entry point
         /// </summary>
         /// <param name="args">Command line arguments.</param>
         public static void Main(string[] args)
         {
-            List<string> imagePaths = new List<string>();
+            var factory = new WallpaperFinderFactory();
+            WallpaperFinder finder = factory.CreateBackgroundFinder(Environment.OSVersion);
 
-            // Prioritise the new locations for wallpaper paths over the old locations
-            if (GetNewPath(ref imagePaths) || GetOldPath(ref imagePaths))
+            if (finder == null)
+            {
+                MessageBox.Show(
+                    "This operating system is not supported. This script only supports Windows NT 6.0, 6.1, 6.2, 6.3 or 10.x. " +
+                    "(i.e. Windows Vista, Windows 7, Windows Server 2008, Windows 8, Windows Server 2012, Windows 8.1, Windows Server 2012 R2 or Windows 10).\n" +
+                    $"You seem to be running: {Environment.OSVersion.VersionString}",
+                    "WallpaperTutor", 
+                    MessageBoxButtons.OK, 
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            List<string> imagePaths = new List<string>();
+            if (finder.GetWallpapers(ref imagePaths))
             {
                 foreach (string path in imagePaths.Distinct())
                 {
@@ -45,86 +58,10 @@ namespace WallpaperTutor
                     Process.Start("explorer", $"/select,{path}");
                 }
             }
-        }
-
-        /// <summary>
-        /// Converts an array of bytes to a string
-        /// </summary>
-        /// <param name="bytes">An array of bytes in UTF16 format to convert.</param>
-        /// <returns>The string representation of the bytes.</returns>
-        private static string ByteArrayToString(byte[] bytes)
-        {
-            // The path to the image starts at the 24th bit
-            const int PathOffset = 24;
-            string str = Encoding.Unicode.GetString(bytes, PathOffset, bytes.Length - PathOffset);
-            str = str.TrimEnd((char)0);
-            return str;
-        }
-
-        /// <summary>
-        /// Gets the wallpaper paths for Windows 8 and 10
-        /// </summary>
-        /// <param name="imagePaths">The list of paths that were found (if any)</param>
-        /// <returns>True if the paths were found, otherwise false.</returns>
-        private static bool GetNewPath(ref List<string> imagePaths)
-        {
-            RegistryKey desktopKey = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop");
-            object imageCountKey = desktopKey.GetValue("TranscodedImageCount");
-            if (imageCountKey == null || !(imageCountKey is int))
+            else
             {
-                return false;
+                MessageBox.Show("No wallpapers could be found.", "WallpaperTutor", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
-            int imageCount = (int)imageCountKey;
-            for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
-            {
-                string valueName = "TranscodedImageCache_" + imageIndex.ToString("D3");
-                byte[] imageCache = desktopKey.GetValue(valueName) as byte[];
-
-                if (imageCache != null)
-                {
-                    imagePaths.Add(ByteArrayToString(imageCache));
-                }
-            }
-
-            if (imagePaths.Count == 0)
-            {
-                byte[] transcodedBytes = desktopKey.GetValue("TranscodedImageCache") as byte[];
-                imagePaths.Add(ByteArrayToString(transcodedBytes));
-            }
-
-            return imagePaths.Count > 0;
-        }
-
-        /// <summary>
-        /// Gets the wallpaper paths for Windows 7
-        /// </summary>
-        /// <param name="imagePaths">The list of paths that were found (if any)</param>
-        /// <returns>True if any paths were found, otherwise false.</returns>
-        private static bool GetOldPath(ref List<string> imagePaths)
-        {
-            RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Internet Explorer\Desktop\General");
-
-            if (key == null)
-            {
-                return false;
-            }
-
-            object result = key.GetValue("WallpaperSource");
-            if (result == null || !(result is string))
-            {
-                return false;
-            }
-
-            string source = (string)result;
-
-            if (string.IsNullOrEmpty(source))
-            {
-                return false;
-            }
-
-            imagePaths.Add(source);
-            return true;
         }
     }
 }
