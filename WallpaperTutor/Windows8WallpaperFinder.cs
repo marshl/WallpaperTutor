@@ -77,7 +77,7 @@ namespace WallpaperTutor
             // The path to the image starts at the 24th bit
             const int PathOffset = 24;
             string str = Encoding.Unicode.GetString(bytes, PathOffset, bytes.Length - PathOffset);
-            str = str.TrimEnd((char)0);
+            str = str.Substring(0, str.IndexOf((char)0));
             return str;
         }
     }
